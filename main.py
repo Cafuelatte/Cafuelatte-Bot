@@ -20,7 +20,6 @@ class TimerView(discord.ui.View):
         if self.key in self.bot.timers: self.bot.timers[self.key] = False
 
 async def download_hamo(bot_instance):
-    # 確実に「raw.」が入った正しい公式JSONファイルのURLに一本化しました
     endpoint = "https://githubusercontent.com"
     try:
         async with aiohttp.ClientSession() as s:
@@ -32,7 +31,7 @@ async def download_hamo(bot_instance):
                     if k.startswith("Role.") and k.endswith(".Desc"):
                         parts = k.split(".")
                         if len(parts) < 2: continue
-                        # リスト型エラーが起きないようインデックス[1]で文字列を確実に抽出
+                        # ★リスト型エラーを解消！役職名の文字列だけを正確にインデックスで抽出します
                         iname = parts[1]
                         
                         raw = data.get(f"Role.{iname}", iname)
@@ -134,10 +133,7 @@ async def timer(i, hours: int = 0, minutes: int = 0, seconds: int = 0):
     tot = (hours * 3600) + (minutes * 60) + seconds
     if tot <= 0: return await i.response.send_message("**[Bot]**　タイマーは1秒からセットしてください。", ephemeral=True)
     
-    # 応答切れバグを防ぐため、保留（defer）を入れます
     await i.response.defer()
-    
-    # 応答保留時は followup を使ってタイマーをスタートさせます
     msg = await i.followup.send(f"**[Bot]**　**{format_t(tot)}**のタイマーをスタートしました。終了すると、メンションします。")
     key = f"{i.user.id}_{msg.id}"
     bot.timers[key] = True
@@ -152,14 +148,14 @@ async def howrole(i, role: str):
     bot.cur.execute("SELECT desc FROM hamo_roles WHERE name = ?", (role,))
     row = bot.cur.fetchone()
     if not row: return await i.response.send_message(f"**[Bot]**　**「{role}」**　という役職はデータベースに見つかりませんでした。", ephemeral=True)
-    embed = discord.Embed(title=f"役職を調べる: {role}", description=row[0], color=discord.Color.teal())
+    embed = discord.Embed(title=f"役職を調べる: {role}", description=row, color=discord.Color.teal())
     embed.set_footer(text=f"Requested by {i.user.display_name}")
     await i.response.send_message(embed=embed, ephemeral=True)
 
 @howrole.autocomplete("role")
 async def role_auto(i, current: str):
     bot.cur.execute("SELECT name FROM hamo_roles WHERE sname LIKE ? LIMIT 25", (f"%{conv(current)}%",))
-    return [app_commands.Choice(name=r[0], value=r[0]) for r in bot.cur.fetchall()]
+    return [app_commands.Choice(name=r, value=r) for r in bot.cur.fetchall()]
 
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 bot.run(TOKEN)
