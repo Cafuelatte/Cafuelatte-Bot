@@ -19,6 +19,27 @@ class TimerView(discord.ui.View):
         await i.response.defer()
         if self.key in self.bot.timers: self.bot.timers[self.key] = False
 
+async def download_hamo(bot_instance):
+    url = "https://githubusercontent.com"
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.get(url) as res:
+                if res.status != 200: return
+                data = await res.json()
+                count = 0
+                for k, v in data.items():
+                    if k.startswith("Role.") and k.endswith(".Desc"):
+                        iname = k.split(".")[1]
+                        raw = data.get(f"Role.{iname}", iname)
+                        name = re.sub(r'<[^>]+>', '', raw).strip()
+                        desc = re.sub(r'<[^>]+>', '', v).strip()
+                        sname = conv(name) + iname.lower()
+                        bot_instance.cur.execute("INSERT OR REPLACE INTO hamo_roles VALUES (?, ?, ?)", (name, sname, desc))
+                        count += 1
+                bot_instance.conn.commit()
+                print(f"TOH-hamoの役職データを同期しました。 (計 {count} 件)")
+    except Exception as e: print(f"TOH-hamoの役職データの同期中にエラーが発生しました。: {e}")
+
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!_", intents=intents)
@@ -57,6 +78,10 @@ class MyBot(commands.Bot):
 
 bot = MyBot()
 
+@bot.event
+async def on_ready():
+    print(f'ログインに成功しました　BOT名: {bot.user}')
+
 def format_t(s):
     h, r = divmod(s, 3600)
     m, sec = divmod(r, 60)
@@ -83,34 +108,13 @@ async def countdown(bot, key, rem, cid, mid, uid, is_res=False):
     try:
         if bot.timers.get(key, True) and rem <= 0:
             if msg: await msg.edit(content="**[Bot]**　タイマーが終了しました。", view=None)
-            if ch: await ch.send(f"**[Bot]**　<@{uid}> さん、**{format_t(rem)}**のタイマーが終了しました。")
+            if ch: await ch.send(f"**[Bot]**　<@{uid}> さん、タイマーが終了しました。")
         elif not bot.timers.get(key, True):
             if msg: await msg.edit(content=f"**[Bot]**　<@{uid}> さんのタイマーは**キャンセル**されました。", view=None)
     except: pass
     if key in bot.timers: del bot.timers[key]
     bot.cur.execute("DELETE FROM active_timers WHERE key = ?", (key,))
     bot.conn.commit()
-
-async def download_hamo(bot):
-    url = "https://githubusercontent.com"
-    try:
-        async with aiohttp.ClientSession() as s:
-            async with s.get(url) as res:
-                if res.status != 200: return
-                data = await res.json()
-                count = 0
-                for k, v in data.items():
-                    if k.startswith("Role.") and k.endswith(".Desc"):
-                        iname = k.split(".")[1]
-                        raw = data.get(f"Role.{iname}", iname)
-                        name = re.sub(r'<[^>]+>', '', raw).strip()
-                        desc = re.sub(r'<[^>]+>', '', v).strip()
-                        sname = conv(name) + iname.lower()
-                        bot.cur.execute("INSERT OR REPLACE INTO hamo_roles VALUES (?, ?, ?)", (name, sname, desc))
-                        count += 1
-                bot.conn.commit()
-                print(f"TOH-hamoの役職データを同期しました。 (計 {count} 件)")
-    except Exception as e: print(f"TOH-hamoの役職データの同期中にエラーが発生しました。: {e}")
 
 @bot.tree.command(name="ping", description="Pong")
 async def ping(i): await i.response.send_message('**[Bot]**　Pong!')
