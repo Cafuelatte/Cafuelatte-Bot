@@ -20,7 +20,7 @@ class TimerView(discord.ui.View):
         if self.key in self.bot.timers: self.bot.timers[self.key] = False
 
 async def download_hamo(bot_instance):
-    url = "https://githubusercontent.com"
+    url = "https://raw.githubusercontent.com"
     try:
         async with aiohttp.ClientSession() as s:
             async with s.get(url) as res:
