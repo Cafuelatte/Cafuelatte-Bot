@@ -20,6 +20,7 @@ class TimerView(discord.ui.View):
         if self.key in self.bot.timers: self.bot.timers[self.key] = False
 
 async def download_hamo(bot_instance):
+    # 確実に「raw.」が入った正しい公式JSONファイルのURLに一本化しました
     endpoint = "https://githubusercontent.com"
     try:
         async with aiohttp.ClientSession() as s:
@@ -31,6 +32,7 @@ async def download_hamo(bot_instance):
                     if k.startswith("Role.") and k.endswith(".Desc"):
                         parts = k.split(".")
                         if len(parts) < 2: continue
+                        # リスト型エラーが起きないようインデックス[1]で文字列を確実に抽出
                         iname = parts[1]
                         
                         raw = data.get(f"Role.{iname}", iname)
@@ -52,6 +54,7 @@ class MyBot(commands.Bot):
         self.cur = self.conn.cursor()
         self.cur.execute("CREATE TABLE IF NOT EXISTS active_timers (key TEXT PRIMARY KEY, uid INTEGER, cid INTEGER, mid INTEGER, et REAL)")
         
+        # 起動時に古い不完全なデータをクリアします
         self.cur.execute("DROP TABLE IF EXISTS hamo_roles")
         self.cur.execute("CREATE TABLE IF NOT EXISTS hamo_roles (name TEXT PRIMARY KEY, sname TEXT, desc TEXT)")
         self.conn.commit()
@@ -116,7 +119,7 @@ async def countdown(bot, key, rem, cid, mid, uid, is_res=False):
             if msg: await msg.edit(content="**[Bot]**　タイマーが終了しました。", view=None)
             if ch: await ch.send(f"**[Bot]**　<@{uid}> さん、タイマーが終了しました。")
         elif not bot.timers.get(key, True):
-            if msg: await msg.edit(content=f"**[Bot]**　<@{uid}> さんのタイマーは**キャンセル**されました。", view=None)
+            if msg: await msg.edit(content="**[Bot]**　<@{uid}> さんのタイマーは**キャンセル**されました。", view=None)
     except: pass
     if key in bot.timers: del bot.timers[key]
     bot.cur.execute("DELETE FROM active_timers WHERE key = ?", (key,))
@@ -131,10 +134,10 @@ async def timer(i, hours: int = 0, minutes: int = 0, seconds: int = 0):
     tot = (hours * 3600) + (minutes * 60) + seconds
     if tot <= 0: return await i.response.send_message("**[Bot]**　タイマーは1秒からセットしてください。", ephemeral=True)
     
-    # 応答切れバグを防ぐため、最初に応答の保留（defer）を入れます
+    # 応答切れバグを防ぐため、保留（defer）を入れます
     await i.response.defer()
     
-    # 応答保留時は send_message ではなく followups を使ってタイマーの初期メッセージを出します
+    # 応答保留時は followup を使ってタイマーをスタートさせます
     msg = await i.followup.send(f"**[Bot]**　**{format_t(tot)}**のタイマーをスタートしました。終了すると、メンションします。")
     key = f"{i.user.id}_{msg.id}"
     bot.timers[key] = True
