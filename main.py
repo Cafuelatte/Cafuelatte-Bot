@@ -29,12 +29,15 @@ async def download_hamo(bot_instance):
                 count = 0
                 for k, v in data.items():
                     if k.startswith("Role.") and k.endswith(".Desc"):
-                        iname_list = k.split(".")
-                        iname = iname_list[1] if len(iname_list) > 1 else ""
-                        if not iname: continue
+                        # ドットが正しく含まれているか厳密にチェックしてバグデータを完全に排除
+                        if "." not in k: continue
+                        parts = k.split(".")
+                        if len(parts) < 2: continue
+                        iname = parts
+                        
                         raw = data.get(f"Role.{iname}", iname)
-                        name = re.sub(r'<[^>]+>', '', raw).strip()
-                        desc = re.sub(r'<[^>]+>', '', v).strip()
+                        name = re.sub(r'<[^>]+>', '', str(raw)).strip()
+                        desc = re.sub(r'<[^>]+>', '', str(v)).strip()
                         sname = conv(name) + iname.lower()
                         bot_instance.cur.execute("INSERT OR REPLACE INTO hamo_roles VALUES (?, ?, ?)", (name, sname, desc))
                         count += 1
@@ -50,7 +53,7 @@ class MyBot(commands.Bot):
         self.cur = self.conn.cursor()
         self.cur.execute("CREATE TABLE IF NOT EXISTS active_timers (key TEXT PRIMARY KEY, uid INTEGER, cid INTEGER, mid INTEGER, et REAL)")
         
-        # ★【データ初期化バグ修正】古いゴミデータを完全に削除してテーブルを作り直します
+        # 起動時に一度古い不完全なテーブルを完全に初期化します
         self.cur.execute("DROP TABLE IF EXISTS hamo_roles")
         self.cur.execute("CREATE TABLE IF NOT EXISTS hamo_roles (name TEXT PRIMARY KEY, sname TEXT, desc TEXT)")
         self.conn.commit()
