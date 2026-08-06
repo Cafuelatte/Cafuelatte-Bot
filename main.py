@@ -222,3 +222,37 @@ async def timer(interaction: discord.Interaction, hours: int = 0, minutes: int =
 
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 bot.run(TOKEN)
+
+import aiohttp
+
+async def sync_pko_roles(bot_instance):
+    bot_instance.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pko_roles (
+            role_name TEXT PRIMARY KEY,
+            category TEXT,
+            description TEXT,
+            details TEXT
+        )
+    """)
+    bot_instance.conn.commit()
+
+    url = "https://github.com/rar006/TownOfHost-hamo/releases/tag/v4.00.00.11"
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    for key, value in data.items():
+                        if "Role" in key:
+                            role_name = key.replace("Role_", "")
+                            description = value
+                            
+                            bot_instance.cursor.execute(
+                                "INSERT OR REPLACE INTO pko_roles VALUES (?, ?, ?, ?)",
+                                (role_name, "不明（自動取得）", description, "詳細仕様はWiki参照")
+                            )
+                    bot_instance.conn.commit()
+                    print("TOH-PKoの最新役職データを同期しました。")
+    except Exception as e:
+        print(f"データの同期に失敗しました。: {e}")
