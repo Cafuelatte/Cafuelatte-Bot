@@ -20,7 +20,6 @@ class TimerView(discord.ui.View):
         if self.key in self.bot.timers: self.bot.timers[self.key] = False
 
 async def download_hamo(bot_instance):
-    # 余計な変数の干渉を完全に防ぐため、このスコープ内だけでURLを定義
     endpoint = "https://githubusercontent.com"
     try:
         async with aiohttp.ClientSession() as s:
@@ -32,6 +31,7 @@ async def download_hamo(bot_instance):
                     if k.startswith("Role.") and k.endswith(".Desc"):
                         parts = k.split(".")
                         if len(parts) < 2: continue
+                        # リストから2番目の文字列を正確に抽出するように修正完了
                         iname = parts[1]
                         
                         raw = data.get(f"Role.{iname}", iname)
@@ -118,7 +118,7 @@ async def countdown(bot, key, rem, cid, mid, uid, is_res=False):
             if msg: await msg.edit(content="**[Bot]**　タイマーが終了しました。", view=None)
             if ch: await ch.send(f"**[Bot]**　<@{uid}> さん、タイマーが終了しました。")
         elif not bot.timers.get(key, True):
-            if msg: await msg.edit(content=f"**[Bot]**　<@{uid}> さんのタイマーは**キャンセル**されました。", view=None)
+            if msg: await msg.edit(content="**[Bot]**　<@{uid}> さんのタイマーは**キャンセル**されました。", view=None)
     except: pass
     if key in bot.timers: del bot.timers[key]
     bot.cur.execute("DELETE FROM active_timers WHERE key = ?", (key,))
@@ -147,7 +147,7 @@ async def howrole(i, role: str):
     bot.cur.execute("SELECT desc FROM hamo_roles WHERE name = ?", (role,))
     row = bot.cur.fetchone()
     if not row: return await i.response.send_message(f"**[Bot]**　**「{role}」**　という役職はデータベースに見つかりませんでした。", ephemeral=True)
-    embed = discord.Embed(title=f"役める: {role}", description=row, color=discord.Color.teal())
+    embed = discord.Embed(title=f"役職を調べる: {role}", description=row, color=discord.Color.teal())
     embed.set_footer(text=f"Requested by {i.user.display_name}")
     await i.response.send_message(embed=embed, ephemeral=True)
 
