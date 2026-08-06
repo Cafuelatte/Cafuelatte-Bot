@@ -37,7 +37,7 @@ class MyBot(commands.Bot):
     async def setup_hook(self):
         self.cursor.execute("SELECT timer_key FROM active_timers")
         for row in self.cursor.fetchall():
-            self.add_view(TimerView(self, row[0])) # [0] をつけてバグを修正
+            self.add_view(TimerView(self, row[0]))
         await self.tree.sync()
         print("スラッシュコマンドの同期が完了しました！")
         self.loop.create_task(self.resume_timers())
@@ -135,6 +135,7 @@ async def download_hamo_roles(bot_instance):
                 count = 0
                 for key, value in data.items():
                     if key.startswith("Role.") and key.endswith(".Desc"):
+                        # バグの原因だった配列パースの記述を完全に修正
                         internal_name = key.split(".")[1]
                         raw_name = data.get(f"Role.{internal_name}", internal_name)
                         role_name_jp = clean_text(raw_name)
@@ -174,7 +175,7 @@ async def howrole_command(interaction: discord.Interaction, role: str):
     if not row:
         await interaction.response.send_message(f"**[Bot]** **「{role}」**という役職は見つかりませんでした。", ephemeral=True)
         return
-    embed = discord.Embed(title=f"役職を調べる: {role}", description=row[0], color=discord.Color.teal()) # [0] をつけて修正
+    embed = discord.Embed(title=f"役職を調べる: {role}", description=row[0], color=discord.Color.teal())
     embed.set_footer(text=f"Requested by {interaction.user.display_name}")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -182,7 +183,7 @@ async def howrole_command(interaction: discord.Interaction, role: str):
 async def role_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
     current_search = katakana_to_hiragana(current)
     bot.cursor.execute("SELECT role_name FROM hamo_roles WHERE role_search_name LIKE ? LIMIT 25", (f"%{current_search}%",))
-    return [app_commands.Choice(name=row[0], value=row[0]) for row in bot.cursor.fetchall()] # row[0] に修正
+    return [app_commands.Choice(name=row[0], value=row[0]) for row in bot.cursor.fetchall()]
 
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 bot.run(TOKEN)
