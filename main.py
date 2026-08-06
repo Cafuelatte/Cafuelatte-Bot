@@ -20,12 +20,14 @@ class TimerView(discord.ui.View):
         if self.key in self.bot.timers: self.bot.timers[self.key] = False
 
 async def download_hamo(bot_instance):
-    # 古い url 変数との干渉を防ぐため、完全に固有の変数名に変更しました
-    hamo_json_endpoint = "https://githubusercontent.com"
+    # 変数干渉を完全に防ぐため、独自の名前でURLを定義
+    target_endpoint_url = "https://githubusercontent.com"
     try:
         async with aiohttp.ClientSession() as s:
-            async with s.get(hamo_json_endpoint) as res:
-                if res.status != 200: return
+            async with s.get(target_endpoint_url) as res:
+                if res.status != 200:
+                    print(f"データの取得に失敗しました。ステータスコード: {res.status}")
+                    return
                 data = await res.json()
                 count = 0
                 for k, v in data.items():
@@ -42,7 +44,9 @@ async def download_hamo(bot_instance):
                         count += 1
                 bot_instance.conn.commit()
                 print(f"TOH-hamoの役職データを同期しました。 (計 {count} 件)")
-    except Exception as e: print(f"TOH-hamoの役職データの同期中にエラーが発生しました。: {e}")
+    except Exception as network_error:
+        # 古い変数 url を一切呼び出さない安全なエラー出力に修正
+        print(f"同期システム内部でエラーを検知しました: {network_error}")
 
 class MyBot(commands.Bot):
     def __init__(self):
@@ -52,7 +56,7 @@ class MyBot(commands.Bot):
         self.cur = self.conn.cursor()
         self.cur.execute("CREATE TABLE IF NOT EXISTS active_timers (key TEXT PRIMARY KEY, uid INTEGER, cid INTEGER, mid INTEGER, et REAL)")
         
-        # 起動時に一度古い不完全なデータをクリアします
+        # 起動時に古い不完全なテーブルをクリア
         self.cur.execute("DROP TABLE IF EXISTS hamo_roles")
         self.cur.execute("CREATE TABLE IF NOT EXISTS hamo_roles (name TEXT PRIMARY KEY, sname TEXT, desc TEXT)")
         self.conn.commit()
