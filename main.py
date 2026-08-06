@@ -63,7 +63,7 @@ def format_time(seconds: int) -> str:
 
 @bot.tree.command(name="ping", description="Pong")
 async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message('Pong!')
+    await interaction.response.send_message('**[Bot]**　Pong!')
 
 @bot.tree.command(name="timer", description="タイマーをセットし、終了したらメンションします")
 @app_commands.describe(
