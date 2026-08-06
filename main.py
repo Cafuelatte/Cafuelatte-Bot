@@ -220,39 +220,98 @@ async def timer(interaction: discord.Interaction, hours: int = 0, minutes: int =
 
     asyncio.create_task(run_countdown(interaction, message, timer_key, total_seconds))
 
-TOKEN = os.getenv('DISCORD_BOT_TOKEN')
-bot.run(TOKEN)
-
 import aiohttp
+import re
 
-async def sync_pko_roles(bot_instance):
+def clean_text(text: str) -> str:
+    if not text:
+        return ""
+    return re.sub(r'<[^>]+>', '', text).strip()
+
+def katakana_to_hiragana(text: str) -> str:
+    return "".join(chr(ord(c) - 96) if "ァ" <= c <= "ヶ" else c for c in text).lower()
+
+async def download_hamo_roles(bot_instance):
     bot_instance.cursor.execute("""
-        CREATE TABLE IF NOT EXISTS pko_roles (
+        CREATE TABLE IF NOT EXISTS hamo_roles (
             role_name TEXT PRIMARY KEY,
-            category TEXT,
-            description TEXT,
-            details TEXT
+            role_search_name TEXT,
+            description TEXT
         )
     """)
     bot_instance.conn.commit()
 
-    url = "https://github.com/rar006/TownOfHost-hamo/releases/tag/v4.00.00.11"
+    url = "https://githubusercontent.com"
     
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    for key, value in data.items():
-                        if "Role" in key:
-                            role_name = key.replace("Role_", "")
-                            description = value
-                            
-                            bot_instance.cursor.execute(
-                                "INSERT OR REPLACE INTO pko_roles VALUES (?, ?, ?, ?)",
-                                (role_name, "不明（自動取得）", description, "詳細仕様はWiki参照")
-                            )
-                    bot_instance.conn.commit()
-                    print("TOH-PKoの最新役職データを同期しました。")
+                if response.status != 200:
+                    print(f"TOH-hamoの役職データのダウンロードに失敗しました (Status: {response.status})")
+                    return
+                
+                data = await response.json()
+                count = 0
+                
+                for key, value in data.items():
+                    if key.startswith("Role.") and key.endswith(".Desc"):
+                        internal_name = key.split(".")[1]
+                        
+                        raw_name = data.get(f"Role.{internal_name}", internal_name)
+                        role_name_jp = clean_text(raw_name)
+                        description_jp = clean_text(value)
+                        
+                        search_name = katakana_to_hiragana(role_name_jp) + internal_name.lower()
+                        
+                        bot_instance.cursor.execute(
+                            "INSERT OR REPLACE INTO hamo_roles VALUES (?, ?, ?)",
+                            (role_name_jp, search_name, description_jp)
+                        )
+                        count += 1
+                        
+                bot_instance.conn.commit()
+                print(f"TOH-hamoの役職データを同期しました。 (計 {count} 件)")
     except Exception as e:
-        print(f"データの同期に失敗しました。: {e}")
+        print(f"TOH-hamoの役職データの同期中にエラーが発生しました。: {e}")
+
+async def role_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+    current_search = katakana_to_hiragana(current)
+    
+    bot.cursor.execute(
+        "SELECT role_name FROM hamo_roles WHERE role_search_name LIKE ? LIMIT 25",
+        (f"%{current_search}%",)
+    )
+    rows = bot.cursor.fetchall()
+    
+    return [
+        app_commands.Choice(name=row[0], value=row[0])
+        for row in rows
+    ]
+
+@bot.tree.command(name="how role", description="TOH-hamoの役職を調べます")
+@app_commands.describe(role="役職名")
+@app_commands.autocomplete(role=role_autocomplete)
+async def hamo_command(interaction: discord.Interaction, role: str):
+    bot.cursor.execute("SELECT description FROM hamo_roles WHERE role_name = ?", (role,))
+    row = bot.cursor.fetchone()
+    
+    if not row:
+        await interaction.response.send_message(
+            f"**[Bot]**　**「{role}」**　という役職はデータベースに見つかりませんでした。",
+            ephemeral=True
+        )
+        return
+
+    description = row[0]
+    
+    embed = discord.Embed(
+        title=f"役職を調べる: {role}",
+        description=description,
+        color=discord.Color.teal()
+    )
+    embed.set_footer(text=f"Requested by {interaction.user.display_name}")
+    
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+TOKEN = os.getenv('DISCORD_BOT_TOKEN')
+bot.run(TOKEN)
