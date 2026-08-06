@@ -26,12 +26,10 @@ async def ping(interaction: discord.Interaction):
     await interaction.response.send_message('Pong!')
 
 @bot.tree.command(name="timer", description="タイマーをセットし、終了したらメンションします")
-@app_commands.describe(seconds="")
+@app_commands.describe(seconds="タイマーを秒単位で指定")
 async def timer(interaction: discord.Interaction, seconds: int):
     if seconds <= 0:
-        await interaction.response.send_message("**[Bot]**　タイマーは1秒からセットしてください。", ephemeral=True)
-        return
-    await interaction.response.send_message(f"**[Bot]　{seconds}秒間**のタイマーをスタートしました。終了すると、メンションします。")
+    await interaction.response.send_message(f"**[Bot]**　**{seconds}秒間**のタイマーをスタートしました。終了すると、メンションします。")
     await asyncio.sleep(seconds)
     await interaction.followup.send(f"**[Bot]**　{interaction.user.mention} さん、**{seconds}秒間**のタイマーが終了しました。")
 
