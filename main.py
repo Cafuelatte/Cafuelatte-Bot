@@ -288,7 +288,7 @@ async def role_autocomplete(interaction: discord.Interaction, current: str) -> l
         for row in rows
     ]
 
-@bot.tree.command(name="how role", description="TOH-hamoの役職を調べます")
+@bot.tree.command(name="howrole", description="TOH-hamoの役職を調べます")
 @app_commands.describe(role="役職名")
 @app_commands.autocomplete(role=role_autocomplete)
 async def hamo_command(interaction: discord.Interaction, role: str):
