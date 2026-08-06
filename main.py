@@ -241,7 +241,7 @@ async def download_hamo_roles(bot_instance):
     """)
     bot_instance.conn.commit()
 
-    url = "https://githubusercontent.com"
+    url = "githubusercontent.com"
     
     try:
         async with aiohttp.ClientSession() as session:
