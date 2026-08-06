@@ -14,13 +14,12 @@ class TimerView(discord.ui.View):
         self.stop_btn.custom_id = f"stop_{key}"
     @discord.ui.button(label="タイマーを終了", style=discord.ButtonStyle.danger)
     async def stop_btn(self, i, btn):
-        if i.user.id != int(self.key.split("_")[0]):
+        if i.user.id != int(self.key.split("_")):
             return await i.response.send_message("このタイマーはあなたの所有物ではありません。", ephemeral=True)
         await i.response.defer()
         if self.key in self.bot.timers: self.bot.timers[self.key] = False
 
 async def download_hamo(bot_instance):
-    # 23行目のURLを正しいRAWデータのフルパスに一本化して修正完了
     url = "https://githubusercontent.com"
     try:
         async with aiohttp.ClientSession() as s:
@@ -30,7 +29,9 @@ async def download_hamo(bot_instance):
                 count = 0
                 for k, v in data.items():
                     if k.startswith("Role.") and k.endswith(".Desc"):
-                        iname = k.split(".")[1]
+                        iname_list = k.split(".")
+                        iname = iname_list[1] if len(iname_list) > 1 else ""
+                        if not iname: continue
                         raw = data.get(f"Role.{iname}", iname)
                         name = re.sub(r'<[^>]+>', '', raw).strip()
                         desc = re.sub(r'<[^>]+>', '', v).strip()
@@ -48,11 +49,14 @@ class MyBot(commands.Bot):
         self.conn = sqlite3.connect("timers.db")
         self.cur = self.conn.cursor()
         self.cur.execute("CREATE TABLE IF NOT EXISTS active_timers (key TEXT PRIMARY KEY, uid INTEGER, cid INTEGER, mid INTEGER, et REAL)")
+        
+        # ★【データ初期化バグ修正】古いゴミデータを完全に削除してテーブルを作り直します
+        self.cur.execute("DROP TABLE IF EXISTS hamo_roles")
         self.cur.execute("CREATE TABLE IF NOT EXISTS hamo_roles (name TEXT PRIMARY KEY, sname TEXT, desc TEXT)")
         self.conn.commit()
     async def setup_hook(self):
         self.cur.execute("SELECT key FROM active_timers")
-        for r in self.cur.fetchall(): self.add_view(TimerView(self, r[0]))
+        for r in self.cur.fetchall(): self.add_view(TimerView(self, r))
         await self.tree.sync()
         print("スラッシュコマンドの同期が完了しました！")
         self.loop.create_task(self.resume_timers())
@@ -140,14 +144,14 @@ async def howrole(i, role: str):
     bot.cur.execute("SELECT desc FROM hamo_roles WHERE name = ?", (role,))
     row = bot.cur.fetchone()
     if not row: return await i.response.send_message(f"**[Bot]**　**「{role}」**　という役職はデータベースに見つかりませんでした。", ephemeral=True)
-    embed = discord.Embed(title=f"役職を調べる: {role}", description=row[0], color=discord.Color.teal())
+    embed = discord.Embed(title=f"役職を調べる: {role}", description=row, color=discord.Color.teal())
     embed.set_footer(text=f"Requested by {i.user.display_name}")
     await i.response.send_message(embed=embed, ephemeral=True)
 
 @howrole.autocomplete("role")
 async def role_auto(i, current: str):
     bot.cur.execute("SELECT name FROM hamo_roles WHERE sname LIKE ? LIMIT 25", (f"%{conv(current)}%",))
-    return [app_commands.Choice(name=r[0], value=r[0]) for r in bot.cur.fetchall()]
+    return [app_commands.Choice(name=r, value=r) for r in bot.cur.fetchall()]
 
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 bot.run(TOKEN)
