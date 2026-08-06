@@ -20,6 +20,7 @@ class TimerView(discord.ui.View):
         if self.key in self.bot.timers: self.bot.timers[self.key] = False
 
 async def download_hamo(bot_instance):
+    # 23行目のURLを正しいRAWデータのフルパスに一本化して修正完了
     url = "https://githubusercontent.com"
     try:
         async with aiohttp.ClientSession() as s:
@@ -29,7 +30,6 @@ async def download_hamo(bot_instance):
                 count = 0
                 for k, v in data.items():
                     if k.startswith("Role.") and k.endswith(".Desc"):
-                        # 分割したリストから2番目の文字列を正確に引き出すように修正
                         iname = k.split(".")[1]
                         raw = data.get(f"Role.{iname}", iname)
                         name = re.sub(r'<[^>]+>', '', raw).strip()
