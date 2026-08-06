@@ -20,20 +20,19 @@ class TimerView(discord.ui.View):
         if self.key in self.bot.timers: self.bot.timers[self.key] = False
 
 async def download_hamo(bot_instance):
-    url = "https://githubusercontent.com"
+    # 古い url 変数との干渉を防ぐため、完全に固有の変数名に変更しました
+    hamo_json_endpoint = "https://githubusercontent.com"
     try:
         async with aiohttp.ClientSession() as s:
-            async with s.get(url) as res:
+            async with s.get(hamo_json_endpoint) as res:
                 if res.status != 200: return
                 data = await res.json()
                 count = 0
                 for k, v in data.items():
                     if k.startswith("Role.") and k.endswith(".Desc"):
-                        # ドットが正しく含まれているか厳密にチェックしてバグデータを完全に排除
-                        if "." not in k: continue
                         parts = k.split(".")
                         if len(parts) < 2: continue
-                        iname = parts
+                        iname = parts[1]
                         
                         raw = data.get(f"Role.{iname}", iname)
                         name = re.sub(r'<[^>]+>', '', str(raw)).strip()
@@ -53,7 +52,7 @@ class MyBot(commands.Bot):
         self.cur = self.conn.cursor()
         self.cur.execute("CREATE TABLE IF NOT EXISTS active_timers (key TEXT PRIMARY KEY, uid INTEGER, cid INTEGER, mid INTEGER, et REAL)")
         
-        # 起動時に一度古い不完全なテーブルを完全に初期化します
+        # 起動時に一度古い不完全なデータをクリアします
         self.cur.execute("DROP TABLE IF EXISTS hamo_roles")
         self.cur.execute("CREATE TABLE IF NOT EXISTS hamo_roles (name TEXT PRIMARY KEY, sname TEXT, desc TEXT)")
         self.conn.commit()
@@ -147,14 +146,14 @@ async def howrole(i, role: str):
     bot.cur.execute("SELECT desc FROM hamo_roles WHERE name = ?", (role,))
     row = bot.cur.fetchone()
     if not row: return await i.response.send_message(f"**[Bot]**　**「{role}」**　という役職はデータベースに見つかりませんでした。", ephemeral=True)
-    embed = discord.Embed(title=f"役職を調べる: {role}", description=row, color=discord.Color.teal())
+    embed = discord.Embed(title=f"役職を調べる: {role}", description=row[0], color=discord.Color.teal())
     embed.set_footer(text=f"Requested by {i.user.display_name}")
     await i.response.send_message(embed=embed, ephemeral=True)
 
 @howrole.autocomplete("role")
 async def role_auto(i, current: str):
     bot.cur.execute("SELECT name FROM hamo_roles WHERE sname LIKE ? LIMIT 25", (f"%{conv(current)}%",))
-    return [app_commands.Choice(name=r, value=r) for r in bot.cur.fetchall()]
+    return [app_commands.Choice(name=r[0], value=r[0]) for r in bot.cur.fetchall()]
 
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 bot.run(TOKEN)
