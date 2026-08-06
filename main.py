@@ -31,8 +31,10 @@ async def download_hamo(bot_instance):
                     if k.startswith("Role.") and k.endswith(".Desc"):
                         parts = k.split(".")
                         if len(parts) < 2: continue
-                        # ★リスト型エラーを解消！役職名の文字列だけを正確にインデックスで抽出します
-                        iname = parts[1]
+                        
+                        # 配列のブラケット記号を使わずに、ポップ処理で安全に2番目の役職名文字列を抽出します
+                        parts.pop(0)
+                        iname = parts.pop(0)
                         
                         raw = data.get(f"Role.{iname}", iname)
                         name = re.sub(r'<[^>]+>', '', str(raw)).strip()
@@ -53,7 +55,6 @@ class MyBot(commands.Bot):
         self.cur = self.conn.cursor()
         self.cur.execute("CREATE TABLE IF NOT EXISTS active_timers (key TEXT PRIMARY KEY, uid INTEGER, cid INTEGER, mid INTEGER, et REAL)")
         
-        # 起動時に古い不完全なデータをクリアします
         self.cur.execute("DROP TABLE IF EXISTS hamo_roles")
         self.cur.execute("CREATE TABLE IF NOT EXISTS hamo_roles (name TEXT PRIMARY KEY, sname TEXT, desc TEXT)")
         self.conn.commit()
@@ -148,14 +149,14 @@ async def howrole(i, role: str):
     bot.cur.execute("SELECT desc FROM hamo_roles WHERE name = ?", (role,))
     row = bot.cur.fetchone()
     if not row: return await i.response.send_message(f"**[Bot]**　**「{role}」**　という役職はデータベースに見つかりませんでした。", ephemeral=True)
-    embed = discord.Embed(title=f"役職を調べる: {role}", description=row, color=discord.Color.teal())
+    embed = discord.Embed(title=f"役職を調べる: {role}", description=row[0] if isinstance(row, tuple) else row, color=discord.Color.teal())
     embed.set_footer(text=f"Requested by {i.user.display_name}")
     await i.response.send_message(embed=embed, ephemeral=True)
 
 @howrole.autocomplete("role")
 async def role_auto(i, current: str):
     bot.cur.execute("SELECT name FROM hamo_roles WHERE sname LIKE ? LIMIT 25", (f"%{conv(current)}%",))
-    return [app_commands.Choice(name=r, value=r) for r in bot.cur.fetchall()]
+    return [app_commands.Choice(name=r[0], value=r[0]) for r in bot.cur.fetchall()]
 
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 bot.run(TOKEN)
