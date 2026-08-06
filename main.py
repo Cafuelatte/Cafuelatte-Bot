@@ -3,6 +3,9 @@ import asyncio
 import discord
 from discord import app_commands
 from discord.ext import commands
+from dotenv import load_dotenv
+
+load_dotenv()
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -26,9 +29,11 @@ async def ping(interaction: discord.Interaction):
     await interaction.response.send_message('Pong!')
 
 @bot.tree.command(name="timer", description="タイマーをセットし、終了したらメンションします")
-@app_commands.describe(seconds="タイマーを秒単位で指定")
+@app_commands.describe(seconds="タイマーを測る秒数を入力してください")
 async def timer(interaction: discord.Interaction, seconds: int):
     if seconds <= 0:
+        await interaction.response.send_message("**[Bot]**　タイマーは1秒からセットしてください。", ephemeral=True)
+        return
     await interaction.response.send_message(f"**[Bot]**　**{seconds}秒間**のタイマーをスタートしました。終了すると、メンションします。")
     await asyncio.sleep(seconds)
     await interaction.followup.send(f"**[Bot]**　{interaction.user.mention} さん、**{seconds}秒間**のタイマーが終了しました。")
