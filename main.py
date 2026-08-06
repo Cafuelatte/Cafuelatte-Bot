@@ -31,7 +31,6 @@ async def download_hamo(bot_instance):
                     if k.startswith("Role.") and k.endswith(".Desc"):
                         parts = k.split(".")
                         if len(parts) < 2: continue
-                        # リストから2番目の文字列を正確に抽出するように修正完了
                         iname = parts[1]
                         
                         raw = data.get(f"Role.{iname}", iname)
@@ -53,7 +52,6 @@ class MyBot(commands.Bot):
         self.cur = self.conn.cursor()
         self.cur.execute("CREATE TABLE IF NOT EXISTS active_timers (key TEXT PRIMARY KEY, uid INTEGER, cid INTEGER, mid INTEGER, et REAL)")
         
-        # 起動時に一度古い不完全なデータをクリアします
         self.cur.execute("DROP TABLE IF EXISTS hamo_roles")
         self.cur.execute("CREATE TABLE IF NOT EXISTS hamo_roles (name TEXT PRIMARY KEY, sname TEXT, desc TEXT)")
         self.conn.commit()
@@ -118,7 +116,7 @@ async def countdown(bot, key, rem, cid, mid, uid, is_res=False):
             if msg: await msg.edit(content="**[Bot]**　タイマーが終了しました。", view=None)
             if ch: await ch.send(f"**[Bot]**　<@{uid}> さん、タイマーが終了しました。")
         elif not bot.timers.get(key, True):
-            if msg: await msg.edit(content="**[Bot]**　<@{uid}> さんのタイマーは**キャンセル**されました。", view=None)
+            if msg: await msg.edit(content=f"**[Bot]**　<@{uid}> さんのタイマーは**キャンセル**されました。", view=None)
     except: pass
     if key in bot.timers: del bot.timers[key]
     bot.cur.execute("DELETE FROM active_timers WHERE key = ?", (key,))
@@ -132,8 +130,12 @@ async def ping(i): await i.response.send_message('**[Bot]**　Pong!')
 async def timer(i, hours: int = 0, minutes: int = 0, seconds: int = 0):
     tot = (hours * 3600) + (minutes * 60) + seconds
     if tot <= 0: return await i.response.send_message("**[Bot]**　タイマーは1秒からセットしてください。", ephemeral=True)
-    await i.response.send_message(f"**[Bot]**　**{format_t(tot)}**のタイマーをスタートしました。終了すると、メンションします。")
-    msg = await i.original_response()
+    
+    # 応答切れバグを防ぐため、最初に応答の保留（defer）を入れます
+    await i.response.defer()
+    
+    # 応答保留時は send_message ではなく followups を使ってタイマーの初期メッセージを出します
+    msg = await i.followup.send(f"**[Bot]**　**{format_t(tot)}**のタイマーをスタートしました。終了すると、メンションします。")
     key = f"{i.user.id}_{msg.id}"
     bot.timers[key] = True
     bot.cur.execute("INSERT OR REPLACE INTO active_timers VALUES (?, ?, ?, ?, ?)", (key, i.user.id, i.channel.id, msg.id, time.time() + tot))
@@ -147,14 +149,14 @@ async def howrole(i, role: str):
     bot.cur.execute("SELECT desc FROM hamo_roles WHERE name = ?", (role,))
     row = bot.cur.fetchone()
     if not row: return await i.response.send_message(f"**[Bot]**　**「{role}」**　という役職はデータベースに見つかりませんでした。", ephemeral=True)
-    embed = discord.Embed(title=f"役職を調べる: {role}", description=row, color=discord.Color.teal())
+    embed = discord.Embed(title=f"役職を調べる: {role}", description=row[0], color=discord.Color.teal())
     embed.set_footer(text=f"Requested by {i.user.display_name}")
     await i.response.send_message(embed=embed, ephemeral=True)
 
 @howrole.autocomplete("role")
 async def role_auto(i, current: str):
     bot.cur.execute("SELECT name FROM hamo_roles WHERE sname LIKE ? LIMIT 25", (f"%{conv(current)}%",))
-    return [app_commands.Choice(name=r, value=r) for r in bot.cur.fetchall()]
+    return [app_commands.Choice(name=r[0], value=r[0]) for r in bot.cur.fetchall()]
 
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 bot.run(TOKEN)
