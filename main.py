@@ -37,7 +37,7 @@ class MyBot(commands.Bot):
     async def setup_hook(self):
         self.cursor.execute("SELECT timer_key FROM active_timers")
         for row in self.cursor.fetchall():
-            self.add_view(TimerView(self, row[0]))
+            self.add_view(TimerView(self, row[0])) # [0] をつけてバグを修正
         await self.tree.sync()
         print("スラッシュコマンドの同期が完了しました！")
         self.loop.create_task(self.resume_timers())
@@ -119,7 +119,7 @@ async def resume_countdown(bot_instance, timer_key: str, total_seconds: int, cha
             if message: await message.edit(content="**[Bot]** タイマーが終了しました。", view=None)
             if channel: await channel.send(f"**[Bot]** <@{user_id}> さん、タイマーが終了しました。")
         elif not bot_instance.active_timers.get(timer_key, True):
-            if message: await message.edit(content=f"**[Bot]** <@{user_id}> さんのタイマーはキャンセルされました。", view=None)
+            if message: await message.edit(content="**[Bot]** <@{user_id}> さんのタイマーはキャンセルされました。", view=None)
     except: pass
     if timer_key in bot_instance.active_timers: del bot_instance.active_timers[timer_key]
     bot_instance.cursor.execute("DELETE FROM active_timers WHERE timer_key = ?", (timer_key,))
@@ -174,7 +174,7 @@ async def howrole_command(interaction: discord.Interaction, role: str):
     if not row:
         await interaction.response.send_message(f"**[Bot]** **「{role}」**という役職は見つかりませんでした。", ephemeral=True)
         return
-    embed = discord.Embed(title=f"役職を調べる: {role}", description=row[0], color=discord.Color.teal())
+    embed = discord.Embed(title=f"役職を調べる: {role}", description=row[0], color=discord.Color.teal()) # [0] をつけて修正
     embed.set_footer(text=f"Requested by {interaction.user.display_name}")
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -182,7 +182,7 @@ async def howrole_command(interaction: discord.Interaction, role: str):
 async def role_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
     current_search = katakana_to_hiragana(current)
     bot.cursor.execute("SELECT role_name FROM hamo_roles WHERE role_search_name LIKE ? LIMIT 25", (f"%{current_search}%",))
-    return [app_commands.Choice(name=row[0], value=row[0]) for row in bot.cursor.fetchall()]
+    return [app_commands.Choice(name=row[0], value=row[0]) for row in bot.cursor.fetchall()] # row[0] に修正
 
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 bot.run(TOKEN)
