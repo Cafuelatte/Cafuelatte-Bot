@@ -1,7 +1,8 @@
-import os, asyncio, sqlite3, time, re, aiohttp, discord
+import os, asyncio, sqlite3, time, discord
 from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
+from hamo_data import ROLES_DICT
 
 load_dotenv()
 intents = discord.Intents.default()
@@ -19,34 +20,6 @@ class TimerView(discord.ui.View):
         await i.response.defer()
         if self.key in self.bot.timers: self.bot.timers[self.key] = False
 
-async def download_hamo(bot_instance):
-    endpoint = "https://githubusercontent.com"
-    try:
-        async with aiohttp.ClientSession() as s:
-            async with s.get(endpoint) as res:
-                if res.status != 200: return
-                data = await res.json()
-                count = 0
-                for k, v in data.items():
-                    if k.startswith("Role.") and k.endswith(".Desc"):
-                        parts = k.split(".")
-                        if len(parts) < 2: continue
-                        
-                        # 配列のブラケット記号を使わずに、ポップ処理で安全に2番目の役職名文字列を抽出します
-                        parts.pop(0)
-                        iname = parts.pop(0)
-                        
-                        raw = data.get(f"Role.{iname}", iname)
-                        name = re.sub(r'<[^>]+>', '', str(raw)).strip()
-                        desc = re.sub(r'<[^>]+>', '', str(v)).strip()
-                        sname = conv(name) + iname.lower()
-                        bot_instance.cur.execute("INSERT OR REPLACE INTO hamo_roles VALUES (?, ?, ?)", (name, sname, desc))
-                        count += 1
-                bot_instance.conn.commit()
-                print(f"TOH-hamoの役職データを同期しました。 (計 {count} 件)")
-    except Exception as e:
-        print(f"同期システム内部でエラーが発生しました: {e}")
-
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!_", intents=intents)
@@ -54,9 +27,6 @@ class MyBot(commands.Bot):
         self.conn = sqlite3.connect("timers.db")
         self.cur = self.conn.cursor()
         self.cur.execute("CREATE TABLE IF NOT EXISTS active_timers (key TEXT PRIMARY KEY, uid INTEGER, cid INTEGER, mid INTEGER, et REAL)")
-        
-        self.cur.execute("DROP TABLE IF EXISTS hamo_roles")
-        self.cur.execute("CREATE TABLE IF NOT EXISTS hamo_roles (name TEXT PRIMARY KEY, sname TEXT, desc TEXT)")
         self.conn.commit()
     async def setup_hook(self):
         self.cur.execute("SELECT key FROM active_timers")
@@ -64,26 +34,6 @@ class MyBot(commands.Bot):
         await self.tree.sync()
         print("スラッシュコマンドの同期が完了しました！")
         self.loop.create_task(self.resume_timers())
-        self.loop.create_task(download_hamo(self))
-    async def resume_timers(self):
-        await self.wait_until_ready()
-        self.cur.execute("SELECT key, uid, cid, mid, et FROM active_timers")
-        for r in self.cur.fetchall():
-            key, uid, cid, mid, et = r
-            rem = int(et - time.time())
-            if rem <= 0:
-                ch = self.get_channel(cid) or await self.fetch_channel(cid)
-                if ch:
-                    try:
-                        msg = await ch.fetch_message(mid)
-                        await msg.edit(content="**[Bot]**　このタイマーは終了しました。", view=None)
-                        await ch.send(f"**[Bot]** <@{uid}> さん、ボット再起動中にタイマーが終了していました。")
-                    except: pass
-                self.cur.execute("DELETE FROM active_timers WHERE key = ?", (key,))
-                self.conn.commit()
-                continue
-            self.timers[key] = True
-            asyncio.create_task(countdown(self, key, rem, cid, mid, uid, True))
 
 bot = MyBot()
 
@@ -119,7 +69,7 @@ async def countdown(bot, key, rem, cid, mid, uid, is_res=False):
             if msg: await msg.edit(content="**[Bot]**　タイマーが終了しました。", view=None)
             if ch: await ch.send(f"**[Bot]**　<@{uid}> さん、タイマーが終了しました。")
         elif not bot.timers.get(key, True):
-            if msg: await msg.edit(content="**[Bot]**　<@{uid}> さんのタイマーは**キャンセル**されました。", view=None)
+            if msg: await msg.edit(content=f"**[Bot]**　<@{uid}> さんのタイマーは**キャンセル**されました。", view=None)
     except: pass
     if key in bot.timers: del bot.timers[key]
     bot.cur.execute("DELETE FROM active_timers WHERE key = ?", (key,))
@@ -143,20 +93,31 @@ async def timer(i, hours: int = 0, minutes: int = 0, seconds: int = 0):
     await msg.edit(view=TimerView(bot, key))
     asyncio.create_task(countdown(bot, key, tot, i.channel.id, msg.id, i.user.id))
 
-@bot.tree.command(name="howrole", description="TOH-hamoの役職を調べます")
+@bot.tree.command(name="howrole", description="役職を調べます")
 @app_commands.describe(role="役職名")
 async def howrole(i, role: str):
-    bot.cur.execute("SELECT desc FROM hamo_roles WHERE name = ?", (role,))
-    row = bot.cur.fetchone()
-    if not row: return await i.response.send_message(f"**[Bot]**　**「{role}」**　という役職はデータベースに見つかりませんでした。", ephemeral=True)
-    embed = discord.Embed(title=f"役職を調べる: {role}", description=row[0] if isinstance(row, tuple) else row, color=discord.Color.teal())
+    name_search = conv(role)
+    found_key = None
+    for k in ROLES_DICT.keys():
+        if conv(k) == name_search:
+            found_key = k
+            break
+            
+    if not found_key:
+        return await i.response.send_message(f"**[Bot]**　**「{role}」**　という役職は見つかりませんでした。", ephemeral=True)
+        
+    embed = discord.Embed(title=f"役職を調べる: {found_key}", description=ROLES_DICT[found_key], color=discord.Color.teal())
     embed.set_footer(text=f"Requested by {i.user.display_name}")
     await i.response.send_message(embed=embed, ephemeral=True)
 
 @howrole.autocomplete("role")
 async def role_auto(i, current: str):
-    bot.cur.execute("SELECT name FROM hamo_roles WHERE sname LIKE ? LIMIT 25", (f"%{conv(current)}%",))
-    return [app_commands.Choice(name=r[0], value=r[0]) for r in bot.cur.fetchall()]
+    current_search = conv(current)
+    return [
+        app_commands.Choice(name=k, value=k)
+        for k in ROLES_DICT.keys()
+        if current_search in conv(k)
+    ][:25]
 
 TOKEN = os.getenv('DISCORD_BOT_TOKEN')
 bot.run(TOKEN)
